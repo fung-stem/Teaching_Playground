@@ -61,6 +61,11 @@ assert.ok(ringCircle.fit.circle.r > 1.8 && ringCircle.fit.circle.r < 2.8, "radiu
 const mixed = acc("classification", "mixed", "line");
 assert.ok(mixed.ratio < 1 && mixed.ratio > 0.6, "overlap accuracy " + mixed.ratio);
 
+const mixedOver = acc("classification", "mixed", "overfit");
+assert.strictEqual(mixedOver.fit.weights.length, 45, "degree 8 has 45 weights");
+assert.ok(mixedOver.fit.weights.every(function (w) { return isFinite(w); }), "overfit weights finite");
+assert.ok(mixedOver.ratio > mixed.ratio, "high degree should fit the overlap better than a line");
+
 const fourClass = acc("classification", "four", "line");
 assert.strictEqual(dataset("classification", "four").points.length, 4);
 assert.strictEqual(fourClass.ratio, 1, "four classification examples should be separable");
@@ -88,8 +93,17 @@ ML.regression.datasets.forEach(function (d) {
 
 const uLine = ML.fitRegression(dataset("regression", "ushape").points, "line");
 const uPara = ML.fitRegression(dataset("regression", "ushape").points, "parabola");
+const uOver = ML.fitRegression(dataset("regression", "ushape").points, "overfit");
 assert.ok(uPara.mae < 1.2, "U-shape parabola miss " + uPara.mae);
 assert.ok(uPara.mae < uLine.mae * 0.4, "parabola should beat a line on the U-shape");
+assert.strictEqual(uOver.weights.length, 13, "degree 12 has 13 weights");
+assert.ok(uOver.mae < uPara.mae, "high degree should fit the U-shape training points more tightly");
+
+const oddPts = dataset("regression", "odd").points;
+const oddLine = ML.fitRegression(oddPts, "line");
+const oddOver = ML.fitRegression(oddPts, "overfit");
+assert.ok(oddOver.mae < oddLine.mae, "high degree should fit the odd example more tightly");
+assert.ok(oddOver.predictY(0.2) > 30, "high degree should rise toward the odd example");
 
 const sLine = ML.fitRegression(dataset("regression", "scurve").points, "line");
 const sCubic = ML.fitRegression(dataset("regression", "scurve").points, "cubic");

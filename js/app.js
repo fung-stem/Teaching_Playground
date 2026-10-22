@@ -77,6 +77,10 @@
       const c = model.circle;
       return centerTerm("x", c.cx) + "² + " + centerTerm("y", c.cy) + "² = " + num(c.r) + "²";
     }
+    if (model.equation === "overfit") {
+      if (model.field) return "degree " + model.degree + " in x and y = 0";
+      return "y = w₁x¹² + … + b";
+    }
     if (model.equation === "line") return polyText(model.weights, ["x", ""]);
     if (model.equation === "parabola") return polyText(model.weights, ["x²", "x", ""]);
     return polyText(model.weights, ["x³", "x²", "x", ""]);
@@ -96,6 +100,7 @@
         ["r", model.circle.r],
       ];
     }
+    if (model.equation === "overfit") return [["weights", model.weights.length]];
     const names = model.equation === "line"
       ? ["w", "b"]
       : model.equation === "parabola"
@@ -130,7 +135,7 @@
       const dt = document.createElement("dt");
       const dd = document.createElement("dd");
       dt.textContent = row[0] + " = ";
-      dd.textContent = num(row[1]);
+      dd.textContent = row[0] === "weights" ? String(row[1]) : num(row[1]);
       wrap.append(dt, dd);
       view.weights.appendChild(wrap);
     });
@@ -291,6 +296,82 @@
     }
   }
 
+  function ensureHighDegree(box, range, model) {
+    const w = Math.round(box.w);
+    const h = Math.round(box.h);
+    if (model.shade && model.shade.w === w && model.shade.h === h) return model.shade;
+    const n = 120;
+    const xs = [];
+    const ys = [];
+    const g = [];
+    for (let i = 0; i <= n; i++) xs.push(range.x0 + (range.x1 - range.x0) * i / n);
+    for (let j = 0; j <= n; j++) ys.push(range.y0 + (range.y1 - range.y0) * j / n);
+    for (let j = 0; j <= n; j++) {
+      g[j] = [];
+      for (let i = 0; i <= n; i++) g[j][i] = model.field(xs[i], ys[j]);
+    }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const ictx = canvas.getContext("2d");
+    ictx.scale(dpr, dpr);
+    ictx.fillStyle = "rgba(44, 123, 182, 0.16)";
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        if (g[j][i] > 0) continue;
+        const x0 = (xs[i] - range.x0) / (range.x1 - range.x0) * w;
+        const x1 = (xs[i + 1] - range.x0) / (range.x1 - range.x0) * w;
+        const y0 = (range.y1 - ys[j]) / (range.y1 - range.y0) * h;
+        const y1 = (range.y1 - ys[j + 1]) / (range.y1 - range.y0) * h;
+        ictx.fillRect(x0, Math.min(y0, y1), x1 - x0 + 0.6, Math.abs(y1 - y0) + 0.6);
+      }
+    }
+    function cross(x0, y0, x1, y1, v0, v1) {
+      const t = v0 / (v0 - v1);
+      return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
+    }
+    const segments = [];
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        const v00 = g[j][i];
+        const v10 = g[j][i + 1];
+        const v11 = g[j + 1][i + 1];
+        const v01 = g[j + 1][i];
+        const pts = [];
+        if (v00 * v10 < 0) pts.push(cross(xs[i], ys[j], xs[i + 1], ys[j], v00, v10));
+        if (v10 * v11 < 0) pts.push(cross(xs[i + 1], ys[j], xs[i + 1], ys[j + 1], v10, v11));
+        if (v01 * v11 < 0) pts.push(cross(xs[i], ys[j + 1], xs[i + 1], ys[j + 1], v01, v11));
+        if (v00 * v01 < 0) pts.push(cross(xs[i], ys[j], xs[i], ys[j + 1], v00, v01));
+        for (let k = 0; k + 1 < pts.length; k += 2) segments.push([pts[k], pts[k + 1]]);
+      }
+    }
+    model.shade = { w: w, h: h, canvas: canvas, segments: segments };
+    return model.shade;
+  }
+
+  function drawHighDegree(ctx, box, range, model) {
+    const shade = ensureHighDegree(box, range, model);
+    ctx.drawImage(shade.canvas, box.l, box.t, box.w, box.h);
+  }
+
+  function strokeHighDegree(ctx, box, scale, range, model) {
+    const shade = ensureHighDegree(box, range, model);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(box.l, box.t, box.w, box.h);
+    ctx.clip();
+    ctx.beginPath();
+    shade.segments.forEach(function (seg) {
+      ctx.moveTo(scale.px(seg[0][0]), scale.py(seg[0][1]));
+      ctx.lineTo(scale.px(seg[1][0]), scale.py(seg[1][1]));
+    });
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function paintClassification() {
     const side = tasks.classification;
     const view = ui.classification;
@@ -311,7 +392,9 @@
     ctx.fillStyle = "rgba(214, 60, 48, 0.13)";
     ctx.fillRect(box.l, box.t, box.w, box.h);
     ctx.fillStyle = "rgba(44, 123, 182, 0.16)";
-    if (model.circle) {
+    if (model.field) {
+      drawHighDegree(ctx, box, spec.range, model);
+    } else if (model.circle) {
       const c = model.circle;
       const rx = Math.abs(scale.px(c.cx + c.r) - scale.px(c.cx));
       const ry = Math.abs(scale.py(c.cy + c.r) - scale.py(c.cy));
@@ -333,7 +416,9 @@
     ctx.restore();
 
     drawFrame(ctx, spec, box, scale);
-    if (model.circle) {
+    if (model.field) {
+      strokeHighDegree(ctx, box, scale, spec.range, model);
+    } else if (model.circle) {
       const c = model.circle;
       const rx = Math.abs(scale.px(c.cx + c.r) - scale.px(c.cx));
       const ry = Math.abs(scale.py(c.cy + c.r) - scale.py(c.cy));

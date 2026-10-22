@@ -41,8 +41,9 @@
 
   // ponytail: tiny ridge so a flat column still returns numbers.
   // Upgrade path: a rank-revealing solver if datasets grow past a few dozen points.
-  function leastSquares(rows, ys) {
+  function leastSquares(rows, ys, ridge) {
     const p = rows[0].length;
+    const reg = ridge === undefined ? 1e-8 : ridge;
     const xtx = [];
     const xty = [];
     for (let a = 0; a < p; a++) {
@@ -56,7 +57,7 @@
         for (let b = 0; b < p; b++) xtx[a][b] += rows[i][a] * rows[i][b];
       }
     }
-    for (let a = 0; a < p; a++) xtx[a][a] += 1e-8;
+    for (let a = 0; a < p; a++) xtx[a][a] += reg;
     const weights = solve(xtx, xty);
     if (!weights) return new Array(p).fill(0);
     return weights;
@@ -255,7 +256,68 @@
     return correct;
   }
 
+  // ponytail: degree 8 in two variables is 45 weights. Enough to wrap single
+  // points; a Chebyshev basis if the normal equations start returning zeros.
+  const CLASS_DEGREE = 8;
+
+  function classMonomials(x, y) {
+    const u = (x - 5) / 5;
+    const v = (y - 5) / 5;
+    const up = [1];
+    const vp = [1];
+    for (let k = 1; k <= CLASS_DEGREE; k++) {
+      up[k] = up[k - 1] * u;
+      vp[k] = vp[k - 1] * v;
+    }
+    const row = [];
+    for (let i = 0; i <= CLASS_DEGREE; i++) {
+      for (let j = 0; j <= CLASS_DEGREE - i; j++) row.push(up[i] * vp[j]);
+    }
+    return row;
+  }
+
+  function fitHighDegree(points) {
+    const rows = points.map(function (p) {
+      return classMonomials(p.x, p.y);
+    });
+    const ys = points.map(function (p) {
+      return p.cls === 1 ? 1 : -1;
+    });
+    let weights = leastSquares(rows, ys, 1e-6);
+    function fieldOf(w) {
+      return function (x, y) {
+        const row = classMonomials(x, y);
+        let sum = 0;
+        for (let i = 0; i < w.length; i++) sum += w[i] * row[i];
+        return sum;
+      };
+    }
+    let field = fieldOf(weights);
+    let predict = function (x, y) {
+      return field(x, y) > 0 ? 1 : 0;
+    };
+    if (countCorrect(points, predict) * 2 < points.length) {
+      weights = weights.map(function (v) { return -v; });
+      field = fieldOf(weights);
+      predict = function (x, y) {
+        return field(x, y) > 0 ? 1 : 0;
+      };
+    }
+    return {
+      equation: "overfit",
+      weights: weights,
+      degree: CLASS_DEGREE,
+      circle: null,
+      boundaryY: null,
+      field: field,
+      predict: predict,
+      correct: countCorrect(points, predict),
+      total: points.length,
+    };
+  }
+
   function fitClassification(points, equation) {
+    if (equation === "overfit") return fitHighDegree(points);
     if (equation === "circle") {
       const circle = fitCircle(points);
       const predict = function (x, y) {
@@ -288,16 +350,40 @@
     };
   }
 
+  const REG_DEGREE = 12;
+
+  // Chebyshev powers of x/3.4. Same degree-12 polynomial, without the monomial blow-up.
+  function regMonomials(x) {
+    const u = x / 3.4;
+    const row = [1];
+    if (REG_DEGREE >= 1) row[1] = u;
+    for (let k = 1; k < REG_DEGREE; k++) row[k + 1] = 2 * u * row[k] - row[k - 1];
+    return row;
+  }
+
+  function evalCheb(weights, x) {
+    const u = x / 3.4;
+    let b1 = 0;
+    let b2 = 0;
+    for (let k = weights.length - 1; k >= 1; k--) {
+      const b = 2 * u * b1 - b2 + weights[k];
+      b2 = b1;
+      b1 = b;
+    }
+    return u * b1 - b2 + weights[0];
+  }
+
   function fitRegression(points, equation) {
+    const high = equation === "overfit";
     const rows = points.map(function (p) {
-      return design(equation, p.x);
+      return high ? regMonomials(p.x) : design(equation, p.x);
     });
     const ys = points.map(function (p) {
       return p.y;
     });
-    const weights = leastSquares(rows, ys);
+    const weights = leastSquares(rows, ys, high ? 1e-8 : undefined);
     const predictY = function (x) {
-      return evalPoly(weights, x);
+      return high ? evalCheb(weights, x) : evalPoly(weights, x);
     };
     let absSum = 0;
     let ySum = 0;
@@ -319,6 +405,7 @@
     return {
       equation: equation,
       weights: weights,
+      degree: high ? REG_DEGREE : undefined,
       predictY: predictY,
       mae: absSum / points.length,
       baselineMae: baseSum / points.length,
@@ -406,6 +493,10 @@
       {
         id: "circle",
         label: "Circle:  (x − cₓ)² + (y − cᵧ)² = r²",
+      },
+      {
+        id: "overfit",
+        label: "Overfit:  degree " + CLASS_DEGREE + " in x and y",
       },
     ],
     datasets: [
@@ -526,6 +617,10 @@
       {
         id: "cubic",
         label: "Cubic:  y = w₁x³ + w₂x² + w₃x + b",
+      },
+      {
+        id: "overfit",
+        label: "Overfit:  y = w₁x¹² + … + b",
       },
     ],
     datasets: [
