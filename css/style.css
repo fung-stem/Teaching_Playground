@@ -1,0 +1,266 @@
+:root {
+  --ink: #1c1c1c;
+  --muted: #4a4a4a;
+  --line: #e2e2e2;
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --a: #2c7bb6;
+  --b: #d63c30;
+  --a-soft: #e7f1f8;
+  --b-soft: #fdeceb;
+  --focus: #1d4f91;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.45 "Segoe UI", system-ui, sans-serif;
+}
+
+button, select { font: inherit; }
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: 32px;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.lead, .howto {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--ink);
+}
+
+.lead + .lead { margin-top: 8px; }
+
+h2 {
+  margin: 28px 0 8px;
+  font-size: 22px;
+}
+
+.howto { color: var(--muted); }
+
+.board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 16px 18px;
+}
+
+.card h3 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.def {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+select {
+  min-height: 40px;
+  padding: 6px 8px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.cursor, .score {
+  margin: 8px 0 0;
+}
+
+.fitbox {
+  width: min(100%, 520px);
+  margin: 14px auto 0;
+  padding: 14px 16px;
+  background: #f7f8fa;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.equation {
+  margin: 0;
+  font: 600 18px/1.35 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.weights {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 16px;
+  margin: 8px 0 0;
+}
+
+.weights div { margin: 0; }
+
+.weights dt {
+  display: inline;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.weights dd {
+  display: inline;
+  margin: 0;
+  font: 600 15px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.score { margin: 8px 0 0; color: var(--ink); }
+
+.cursor, .def { color: var(--muted); }
+
+.plot-wrap {
+  margin: 8px auto 0;
+  width: min(100%, 520px);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.seg { display: flex; gap: 6px; }
+
+button {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid #c8c8c8;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button[aria-pressed="true"][data-cls="0"] {
+  background: var(--a);
+  border-color: var(--a);
+  color: #fff;
+}
+
+button[aria-pressed="true"][data-cls="1"] {
+  background: var(--b);
+  border-color: var(--b);
+  color: #fff;
+}
+
+button:focus-visible, select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.legend li { display: flex; align-items: center; gap: 6px; }
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+
+.swatch.a { background: var(--a); }
+.swatch.b { background: var(--b); }
+.swatch.line {
+  width: 18px;
+  height: 0;
+  border-radius: 0;
+  border-top: 3px solid #333;
+}
+.swatch.curve {
+  width: 18px;
+  height: 0;
+  border-radius: 0;
+  border-top: 3px solid var(--b);
+}
+.swatch.added {
+  border-radius: 2px;
+  background: #fff;
+  border: 2px solid #333;
+}
+.swatch.wrong {
+  background: #fff;
+  box-shadow: 0 0 0 2px #111;
+}
+.swatch.miss {
+  width: 0;
+  height: 14px;
+  border-radius: 0;
+  border-left: 2px solid rgba(214, 60, 48, 0.55);
+}
+
+@media (max-width: 860px) {
+  .board { grid-template-columns: 1fr; }
+  h1 { font-size: 28px; }
+}
+
+@media (max-width: 560px) {
+  .controls { grid-template-columns: 1fr; }
+  .page { padding: 18px 14px 36px; }
+}
